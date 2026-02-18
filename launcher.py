@@ -1,9 +1,16 @@
-# --------- launcher.py (Edited) ---------
-from PyQt6.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QDialog, \
+# launcher.py
+import sys, os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from PyQt6.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QLabel, QDialog, \
     QListWidget, QStackedWidget, QMessageBox
 from PyQt6.QtGui import QPixmap, QPalette, QBrush, QFont
 from PyQt6.QtCore import Qt
-import sys, os, subprocess, pygame
+import subprocess, pygame
+from libs.xbox import game_mode
+from Component.MainPage.BottomControllBar import BottomControllBar
+from Component.MainPage.SettingsModal import SettingsDialog
+from Pages.BeforeStart import BeforeStart
 
 if getattr(sys, 'frozen', False):
     BASE_DIR = sys._MEIPASS
@@ -31,7 +38,6 @@ class Launcher(QMainWindow):
         self.showFullScreen()
         self.current_game = 0
         self.current_btn_idx = 0
-        self.btn_list = []
 
         # Background
         self.bg_pixmap = QPixmap(BACKGROUND_IMAGE)
@@ -43,8 +49,11 @@ class Launcher(QMainWindow):
         )))
         self.setPalette(palette)
 
+        # Central Widget
         central = QWidget()
+        self.setCentralWidget(central)
         central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(50, 50, 50, 50)
         central_layout.addStretch()
 
         # Title
@@ -54,59 +63,62 @@ class Launcher(QMainWindow):
         central_layout.addWidget(self.title)
 
         # Bottom Bar
-        bar = QHBoxLayout()
-        self.btn_start = QPushButton("START")
-        self.btn_change = QPushButton("CHANGE GAME ▲▼")
-        self.btn_settings = QPushButton("SETTINGS")
-        self.btn_exit = QPushButton("EXIT")
-
-        for btn in [self.btn_start, self.btn_change, self.btn_settings, self.btn_exit]:
-            btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
-            btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-
-        self.btn_start.clicked.connect(self.start_game)
-        self.btn_change.clicked.connect(self.change_game)
-        self.btn_settings.clicked.connect(self.open_settings)
-        self.btn_exit.clicked.connect(self.close)
-
-        bar.addWidget(self.btn_start)
-        bar.addWidget(self.btn_change)
-        bar.addWidget(self.btn_settings)
-        bar.addStretch()
-        bar.addWidget(self.btn_exit)
-
-        bottom = QWidget()
-        bottom.setFixedHeight(80)
-        bottom.setStyleSheet("background:#000; border-radius:15px;")
-        bottom.setLayout(bar)
+        bottom_callbacks = {
+            "start": self.start_game,
+            "change": self.change_game,
+            "settings": self.open_settings,
+            "exit": self.close
+        }
+        bottom = BottomControllBar(parent=central, callbacks=bottom_callbacks, games=[g[0] for g in GAMES])
+        central_layout.addStretch()
         central_layout.addWidget(bottom)
 
-        self.setCentralWidget(central)
-        self.btn_list = [self.btn_start, self.btn_change, self.btn_settings, self.btn_exit]
-        self.set_active(self.btn_start)
+        # map دکمه‌ها
+        self.btn_start = bottom.btn_start
+        self.game_selector = bottom.game_selector
+        self.btn_settings = bottom.btn_settings
+        self.btn_exit = bottom.btn_exit
+        self.btn_list = bottom.btn_list
+
+        # highlight اولیه
+        self.set_active(self.btn_list[0])
 
     # ---------------- Logic ----------------
     def set_active(self, btn):
         for b in self.btn_list:
-            b.setStyleSheet("color:white; font-weight:bold;")
-        btn.setStyleSheet("color:#ff3c3c; font-weight:bold;")
+            b.setStyleSheet("""
+                QPushButton {
+                    color: white;
+                    background-color: transparent;
+                    border: none;
+                }
+                QPushButton:hover {
+                    color: #ff3c3c;
+                }
+            """)
+        btn.setStyleSheet("""
+            QPushButton {
+                color: #ff3c3c;
+                background-color: transparent;
+                border: none;
+                font-weight:bold;
+            }
+        """)
 
     def start_game(self):
         game_path = GAMES[self.current_game][1]
-        if not os.path.exists(DOLPHIN):
-            self.show_error("Dolphin.exe not found!")
-            return
-        if not os.path.exists(game_path):
-            self.show_error("Game ISO not found!")
+        if not os.path.exists(DOLPHIN) or not os.path.exists(game_path):
+            self.show_error("Dolphin.exe or Game ISO not found!")
             return
         pygame.mixer.music.stop()
-        subprocess.Popen([DOLPHIN, game_path])
+        proc = subprocess.Popen([DOLPHIN, game_path])
+        if sys.platform == "win32":
+            game_mode.set_game_mode_for_pid(proc.pid)
         self.close()
 
-    def change_game(self, step=1):
-        self.current_game = (self.current_game + step) % len(GAMES)
+    def change_game(self, index):
+        self.current_game = index
         self.title.setText(GAMES[self.current_game][0])
-        self.set_active(self.btn_change)
 
     def open_settings(self):
         self.set_active(self.btn_settings)
@@ -127,7 +139,7 @@ class Launcher(QMainWindow):
         elif event.key() == Qt.Key.Key_Left:
             self.current_btn_idx = (self.current_btn_idx - 1) % len(self.btn_list)
             self.set_active(self.btn_list[self.current_btn_idx])
-        elif event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+        elif event.key() in [Qt.Key.Key_Return, Qt.Key.Key_Enter]:
             self.btn_list[self.current_btn_idx].click()
         elif event.key() == Qt.Key.Key_Up:
             self.change_game(step=-1)
@@ -135,33 +147,24 @@ class Launcher(QMainWindow):
             self.change_game(step=1)
 
 
-class SettingsDialog(QDialog):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.setModal(True)
-        self.setFixedSize(700, 400)
-        self.setStyleSheet("background:#111; color:white;")
 
-        layout = QHBoxLayout(self)
-        self.menu = QListWidget()
-        self.menu.addItems(["System Info", "Audio", "Network", "About"])
-        layout.addWidget(self.menu)
-
-        self.stack = QStackedWidget()
-        for text in ["GPU: Auto Detect", "Volume Settings", "Internet: Connected", "Crash Launcher v1.0"]:
-            lbl = QLabel(text)
-            lbl.setStyleSheet("font-weight:bold; font-size:16px;")
-            self.stack.addWidget(lbl)
-        layout.addWidget(self.stack)
-
-        self.menu.currentRowChanged.connect(self.stack.setCurrentIndex)
-        self.menu.setCurrentRow(0)
-
-        self.menu.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-
+if sys.platform == "win32":
+    game_mode.set_game_mode("DazhoGames.CrashLauncher")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+
+    # نمایش متن قبل از لانچر
+    pre_window = BeforeStart()
+    pre_window.show()
+    app.processEvents()
+
+    # صبر کردن تا پنجره قبل بسته شود
+    while pre_window.isVisible():
+        app.processEvents()
+
+    # حالا لانچر اصلی
     win = Launcher()
     win.show()
     sys.exit(app.exec())
+
