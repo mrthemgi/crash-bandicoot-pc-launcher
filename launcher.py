@@ -1,10 +1,10 @@
-# --------- BACKGROUND FULL SCREEN FIX ---------
-from PyQt6.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QDialog, QListWidget, QStackedWidget, QMessageBox
-from PyQt6.QtGui import QPixmap, QPalette, QBrush
+# --------- launcher.py (Edited) ---------
+from PyQt6.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QDialog, \
+    QListWidget, QStackedWidget, QMessageBox
+from PyQt6.QtGui import QPixmap, QPalette, QBrush, QFont
 from PyQt6.QtCore import Qt
 import sys, os, subprocess, pygame
 
-# ---------------- BASE DIR ----------------
 if getattr(sys, 'frozen', False):
     BASE_DIR = sys._MEIPASS
 else:
@@ -12,27 +12,28 @@ else:
 
 DOLPHIN = os.path.join(BASE_DIR, "Dolphin", "dolphin.exe")
 GAMES = [
-    ("Crash of the Titans", os.path.join(BASE_DIR,"Games","titans.iso")),
-    ("Mind Over Mutant", os.path.join(BASE_DIR,"Games","mutant.iso"))
+    ("Crash of the Titans", os.path.join(BASE_DIR, "Games", "titans.iso")),
+    ("Mind Over Mutant", os.path.join(BASE_DIR, "Games", "mutant.iso"))
 ]
-MENU_MUSIC = os.path.join(BASE_DIR,"assets","audio","menu.mp3")
-BACKGROUND_IMAGE = os.path.join(BASE_DIR,"assets","images","bg.jpeg")
+MENU_MUSIC = os.path.join(BASE_DIR, "assets", "audio", "menu.mp3")
+BACKGROUND_IMAGE = os.path.join(BASE_DIR, "assets", "images", "bg.jpeg")
 
-# ---------------- Audio ----------------
 pygame.mixer.init()
 pygame.mixer.music.load(MENU_MUSIC)
 pygame.mixer.music.set_volume(0.6)
 pygame.mixer.music.play(-1)
 
-# ---------------- Main Window ----------------
+
 class Launcher(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Crash Launcher")
         self.showFullScreen()
         self.current_game = 0
+        self.current_btn_idx = 0
+        self.btn_list = []
 
-        # --- Set background using QPalette ---
+        # Background
         self.bg_pixmap = QPixmap(BACKGROUND_IMAGE)
         palette = QPalette()
         palette.setBrush(QPalette.ColorRole.Window, QBrush(self.bg_pixmap.scaled(
@@ -42,7 +43,6 @@ class Launcher(QMainWindow):
         )))
         self.setPalette(palette)
 
-        # --- Overlay layout ---
         central = QWidget()
         central_layout = QVBoxLayout(central)
         central_layout.addStretch()
@@ -50,7 +50,7 @@ class Launcher(QMainWindow):
         # Title
         self.title = QLabel(GAMES[self.current_game][0])
         self.title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.title.setStyleSheet("font-size:40px; color:white;")
+        self.title.setStyleSheet("font-size:40px; color:white; font-weight:bold;")
         central_layout.addWidget(self.title)
 
         # Bottom Bar
@@ -59,6 +59,10 @@ class Launcher(QMainWindow):
         self.btn_change = QPushButton("CHANGE GAME ▲▼")
         self.btn_settings = QPushButton("SETTINGS")
         self.btn_exit = QPushButton("EXIT")
+
+        for btn in [self.btn_start, self.btn_change, self.btn_settings, self.btn_exit]:
+            btn.setFont(QFont("Arial", 14, QFont.Weight.Bold))
+            btn.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self.btn_start.clicked.connect(self.start_game)
         self.btn_change.clicked.connect(self.change_game)
@@ -73,18 +77,19 @@ class Launcher(QMainWindow):
 
         bottom = QWidget()
         bottom.setFixedHeight(80)
-        bottom.setStyleSheet("background:#000;")
+        bottom.setStyleSheet("background:#000; border-radius:15px;")
         bottom.setLayout(bar)
         central_layout.addWidget(bottom)
 
         self.setCentralWidget(central)
+        self.btn_list = [self.btn_start, self.btn_change, self.btn_settings, self.btn_exit]
         self.set_active(self.btn_start)
 
     # ---------------- Logic ----------------
     def set_active(self, btn):
-        for b in [self.btn_start,self.btn_change,self.btn_settings]:
-            b.setStyleSheet("color:white;")
-        btn.setStyleSheet("color:#ff3c3c")
+        for b in self.btn_list:
+            b.setStyleSheet("color:white; font-weight:bold;")
+        btn.setStyleSheet("color:#ff3c3c; font-weight:bold;")
 
     def start_game(self):
         game_path = GAMES[self.current_game][1]
@@ -98,8 +103,8 @@ class Launcher(QMainWindow):
         subprocess.Popen([DOLPHIN, game_path])
         self.close()
 
-    def change_game(self):
-        self.current_game = (self.current_game + 1) % len(GAMES)
+    def change_game(self, step=1):
+        self.current_game = (self.current_game + step) % len(GAMES)
         self.title.setText(GAMES[self.current_game][0])
         self.set_active(self.btn_change)
 
@@ -114,30 +119,47 @@ class Launcher(QMainWindow):
         dlg.setIcon(QMessageBox.Icon.Critical)
         dlg.exec()
 
-# ---------------- Settings Dialog ----------------
+    # ---------------- Keyboard Navigation ----------------
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Right:
+            self.current_btn_idx = (self.current_btn_idx + 1) % len(self.btn_list)
+            self.set_active(self.btn_list[self.current_btn_idx])
+        elif event.key() == Qt.Key.Key_Left:
+            self.current_btn_idx = (self.current_btn_idx - 1) % len(self.btn_list)
+            self.set_active(self.btn_list[self.current_btn_idx])
+        elif event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+            self.btn_list[self.current_btn_idx].click()
+        elif event.key() == Qt.Key.Key_Up:
+            self.change_game(step=-1)
+        elif event.key() == Qt.Key.Key_Down:
+            self.change_game(step=1)
+
+
 class SettingsDialog(QDialog):
-    def __init__(self,parent):
+    def __init__(self, parent):
         super().__init__(parent)
         self.setModal(True)
-        self.setFixedSize(700,400)
+        self.setFixedSize(700, 400)
         self.setStyleSheet("background:#111; color:white;")
 
         layout = QHBoxLayout(self)
-        menu = QListWidget()
-        menu.addItems(["System Info","Audio","Network","About"])
-        layout.addWidget(menu)
+        self.menu = QListWidget()
+        self.menu.addItems(["System Info", "Audio", "Network", "About"])
+        layout.addWidget(self.menu)
 
-        stack = QStackedWidget()
-        stack.addWidget(QLabel("GPU: Auto Detect"))
-        stack.addWidget(QLabel("Volume Settings"))
-        stack.addWidget(QLabel("Internet: Connected"))
-        stack.addWidget(QLabel("Crash Launcher v1.0"))
-        layout.addWidget(stack)
+        self.stack = QStackedWidget()
+        for text in ["GPU: Auto Detect", "Volume Settings", "Internet: Connected", "Crash Launcher v1.0"]:
+            lbl = QLabel(text)
+            lbl.setStyleSheet("font-weight:bold; font-size:16px;")
+            self.stack.addWidget(lbl)
+        layout.addWidget(self.stack)
 
-        menu.currentRowChanged.connect(stack.setCurrentIndex)
-        menu.setCurrentRow(0)
+        self.menu.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.menu.setCurrentRow(0)
 
-# ---------------- Run ----------------
+        self.menu.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = Launcher()
