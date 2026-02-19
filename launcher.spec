@@ -5,7 +5,7 @@ a = Analysis(
     ['launcher.py'],
     pathex=[],
     binaries=[],
-    datas=[('assets/images/bg.jpeg', 'assets/images'), ('assets/audio/menu.mp3', 'assets/audio')],
+    datas=[('assets/images/bg.jpeg', 'assets/images'), ('assets/images/bg2.jpg', 'assets/images'), ('assets/images/loading.gif', 'assets/images'), ('assets/audio/menu.mp3', 'assets/audio'), ('assets/audio/menu2.mp3', 'assets/audio')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
