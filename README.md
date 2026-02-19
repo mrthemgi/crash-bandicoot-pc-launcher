@@ -125,3 +125,9 @@ This repository doesn’t currently include a license. Add one if you plan to op
 ## ❤️ Credits
 
 Built & maintained by `mrthemgi` — thanks for sharing the project on `GitHub`!
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=mrthemgi/crash-bandicoot-pc-launcher&type=date&legend=top-left)](https://www.star-history.com/#mrthemgi/crash-bandicoot-pc-launcher&type=date&legend=top-left)
